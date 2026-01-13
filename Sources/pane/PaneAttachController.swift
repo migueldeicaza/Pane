@@ -224,7 +224,6 @@ final class PaneAttachController {
         return PaneRequest(
             command: request.command,
             sessionID: request.sessionID,
-            sessionPID: request.sessionPID,
             name: request.name,
             commandLine: request.commandLine,
             cols: size.cols,

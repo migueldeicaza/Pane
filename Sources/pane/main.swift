@@ -233,21 +233,33 @@ struct Attach: ParsableCommand {
     @OptionGroup
     var global: GlobalOptions
 
-    @Option(help: "Attach by process pid.")
-    var pid: Int32?
-
-    @Argument(help: "Session id.")
+    @Argument(help: "Session id (optional when only one session is running).")
     var sessionID: String?
 
     mutating func run() throws {
         let context = try PaneContext(options: global)
         let client = context.makeClient()
-        guard sessionID != nil || pid != nil else {
-            throw ValidationError("attach requires a session id or --pid")
+        let resolvedSessionID: String
+        if let sessionID {
+            resolvedSessionID = sessionID
+        } else {
+            let response = try client.send(PaneRequest(command: .listSessions), allowStart: !global.noAutoStart)
+            guard response.ok else {
+                context.logger.error("list sessions failed", metadata: ["message": "\(response.message ?? "unknown error")"])
+                throw ValidationError(response.message ?? "list sessions failed")
+            }
+            let runningSessions = (response.sessions ?? []).filter { $0.isRunning }
+            if runningSessions.count == 1, let session = runningSessions.first {
+                resolvedSessionID = session.id
+            } else if runningSessions.isEmpty {
+                throw ValidationError("no running sessions (specify session id)")
+            } else {
+                throw ValidationError("multiple running sessions (specify session id)")
+            }
         }
         try attachAndStream(
             client: client,
-            request: PaneRequest(command: .attachSession, sessionID: sessionID, sessionPID: pid),
+            request: PaneRequest(command: .attachSession, sessionID: resolvedSessionID),
             allowStart: !global.noAutoStart,
             logger: context.logger
         )
@@ -260,19 +272,13 @@ struct Destroy: ParsableCommand {
     @OptionGroup
     var global: GlobalOptions
 
-    @Option(help: "Destroy by process pid.")
-    var pid: Int32?
-
     @Argument(help: "Session id.")
-    var sessionID: String?
+    var sessionID: String
 
     mutating func run() throws {
         let context = try PaneContext(options: global)
         let client = context.makeClient()
-        guard sessionID != nil || pid != nil else {
-            throw ValidationError("destroy requires a session id or --pid")
-        }
-        let response = try client.send(PaneRequest(command: .destroySession, sessionID: sessionID, sessionPID: pid), allowStart: !global.noAutoStart)
+        let response = try client.send(PaneRequest(command: .destroySession, sessionID: sessionID), allowStart: !global.noAutoStart)
         guard response.ok else {
             context.logger.error("destroy failed", metadata: ["message": "\(response.message ?? "unknown error")"])
             throw ValidationError(response.message ?? "destroy failed")

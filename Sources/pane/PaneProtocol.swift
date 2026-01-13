@@ -20,16 +20,14 @@ enum PaneMessageType: String, Codable {
 struct PaneRequest: Codable {
     var command: PaneCommand
     var sessionID: String?
-    var sessionPID: Int32?
     var name: String?
     var commandLine: [String]?
     var cols: Int?
     var rows: Int?
 
-    init(command: PaneCommand, sessionID: String? = nil, sessionPID: Int32? = nil, name: String? = nil, commandLine: [String]? = nil, cols: Int? = nil, rows: Int? = nil) {
+    init(command: PaneCommand, sessionID: String? = nil, name: String? = nil, commandLine: [String]? = nil, cols: Int? = nil, rows: Int? = nil) {
         self.command = command
         self.sessionID = sessionID
-        self.sessionPID = sessionPID
         self.name = name
         self.commandLine = commandLine
         self.cols = cols

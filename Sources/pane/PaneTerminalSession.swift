@@ -36,10 +36,22 @@ final class PaneTerminalSession: Terminal, LocalProcessDelegate {
     }
 
     func start(commandLine: [String]?) {
-        let shell = commandLine?.first ?? ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        let args = commandLine?.dropFirst().map { $0 } ?? []
+        let defaultShell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        let provided = commandLine ?? []
+        let shell = provided.first ?? defaultShell
+        var args = Array(provided.dropFirst())
+        if provided.isEmpty || provided.count == 1 {
+            args = ["-l"]
+        }
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["TERM"] = environment["TERM"] ?? "xterm-256color"
+        environment["COLORTERM"] = environment["COLORTERM"] ?? "truecolor"
+        environment["LANG"] = environment["LANG"] ?? "en_US.UTF-8"
+
+        let envArray = environment.map { "\($0.key)=\($0.value)" }
         logger.info("starting process", metadata: ["executable": "\(shell)", "args": "\(args)"])
-        process.startProcess(executable: shell, args: args)
+        process.startProcess(executable: shell, args: args, environment: envArray)
     }
 
     func terminate() {

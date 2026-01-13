@@ -3,6 +3,7 @@ import Logging
 
 final class PaneSessionManager {
     private var sessions: [String: PaneTerminalSession] = [:]
+    private var nextSessionID: UInt64 = 1
     private let queue = DispatchQueue(label: "pane.sessions")
     private let logger = Logger(label: "pane.sessions")
 
@@ -14,15 +15,15 @@ final class PaneSessionManager {
             case .listSessions:
                 return listSessions()
             case .destroySession:
-                guard let target = resolveTarget(id: request.sessionID, pid: request.sessionPID) else {
-                    return PaneResponse(ok: false, message: "session id or pid required")
+                guard let sessionID = request.sessionID, !sessionID.isEmpty else {
+                    return PaneResponse(ok: false, message: "session id required")
                 }
-                return destroySession(target: target)
+                return destroySession(id: sessionID)
             case .attachSession:
-                guard let target = resolveTarget(id: request.sessionID, pid: request.sessionPID) else {
-                    return PaneResponse(ok: false, message: "session id or pid required")
+                guard let sessionID = request.sessionID, !sessionID.isEmpty else {
+                    return PaneResponse(ok: false, message: "session id required")
                 }
-                return attachSession(target: target)
+                return attachSession(id: sessionID)
             case .ping:
                 return PaneResponse(ok: true, message: "pong")
             }
@@ -30,16 +31,17 @@ final class PaneSessionManager {
     }
 
     func session(for request: PaneRequest) -> PaneTerminalSession? {
-        guard let target = resolveTarget(id: request.sessionID, pid: request.sessionPID) else {
+        guard let sessionID = request.sessionID, !sessionID.isEmpty else {
             return nil
         }
         return queue.sync {
-            session(for: target)
+            sessions[sessionID]
         }
     }
 
     private func createSession(name: String?, commandLine: [String]?) -> PaneResponse {
-        let id = UUID().uuidString
+        let id = String(nextSessionID)
+        nextSessionID += 1
         let session = PaneTerminalSession(id: id, name: name)
         session.start(commandLine: commandLine)
         sessions[id] = session
@@ -55,9 +57,9 @@ final class PaneSessionManager {
         return PaneResponse(ok: true, sessions: infos)
     }
 
-    private func destroySession(target: SessionTarget) -> PaneResponse {
-        guard let session = session(for: target) else {
-            logger.warning("session not found", metadata: target.metadata)
+    private func destroySession(id: String) -> PaneResponse {
+        guard let session = sessions[id] else {
+            logger.warning("session not found", metadata: ["session": "\(id)"])
             return PaneResponse(ok: false, message: "session not found")
         }
         sessions.removeValue(forKey: session.id)
@@ -66,51 +68,18 @@ final class PaneSessionManager {
         return PaneResponse(ok: true, message: "destroyed \(session.id)")
     }
 
-    private func attachSession(target: SessionTarget) -> PaneResponse {
-        guard let session = session(for: target) else {
-            logger.warning("session not found", metadata: target.metadata)
+    private func attachSession(id: String) -> PaneResponse {
+        guard let session = sessions[id] else {
+            logger.warning("session not found", metadata: ["session": "\(id)"])
             return PaneResponse(ok: false, message: "session not found")
         }
         logger.info("session attached", metadata: ["session": "\(session.id)"])
         return PaneResponse(ok: true, session: session.info())
-    }
-
-    private func resolveTarget(id: String?, pid: Int32?) -> SessionTarget? {
-        if let id, !id.isEmpty {
-            return .id(id)
-        }
-        if let pid, pid > 0 {
-            return .pid(pid)
-        }
-        return nil
-    }
-
-    private func session(for target: SessionTarget) -> PaneTerminalSession? {
-        switch target {
-        case .id(let id):
-            return sessions[id]
-        case .pid(let pid):
-            return sessions.values.first { $0.processID == pid }
-        }
     }
 }
 
 private extension PaneTerminalSession {
     func info() -> PaneSessionInfo {
         PaneSessionInfo(id: id, name: name, createdAt: createdAt, isRunning: isRunning, processID: processID)
-    }
-}
-
-private enum SessionTarget {
-    case id(String)
-    case pid(Int32)
-
-    var metadata: Logger.Metadata {
-        switch self {
-        case .id(let id):
-            return ["session": "\(id)"]
-        case .pid(let pid):
-            return ["pid": "\(pid)"]
-        }
     }
 }
