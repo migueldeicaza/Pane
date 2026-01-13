@@ -175,7 +175,13 @@ final class PaneServerClient {
         queue.async {
             guard !self.isClosed else { return }
             do {
-                try self.connection.send(message)
+                // Use binary format for high-frequency terminal data
+                switch message.type {
+                case .snapshot, .delta:
+                    try self.connection.sendBinary(message)
+                default:
+                    try self.connection.send(message)
+                }
             } catch {
                 self.close()
             }

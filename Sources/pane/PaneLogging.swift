@@ -63,26 +63,19 @@ struct FileLogHandler: LogHandler {
 
 enum PaneLogging {
     static func configure(logToFile: Bool) throws -> String? {
-        let logPath: String?
-        let fileSink: FileLogSink?
         if logToFile {
             let path = try defaultLogPath()
-            logPath = path
-            fileSink = try openFileSink(path: path)
-        } else {
-            logPath = nil
-            fileSink = nil
-        }
-
-        LoggingSystem.bootstrap { label in
-            var handlers: [LogHandler] = [StreamLogHandler.standardError(label: label)]
-            if let fileSink {
-                handlers.append(FileLogHandler(label: label, sink: fileSink))
+            let fileSink = try openFileSink(path: path)
+            LoggingSystem.bootstrap { label in
+                FileLogHandler(label: label, sink: fileSink)
             }
-            return MultiplexLogHandler(handlers)
+            return path
+        } else {
+            LoggingSystem.bootstrap { label in
+                SwiftLogNoOpLogHandler()
+            }
+            return nil
         }
-
-        return logPath
     }
 
     static func defaultLogPath() throws -> String {

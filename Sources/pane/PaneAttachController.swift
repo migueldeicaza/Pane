@@ -31,8 +31,15 @@ final class PaneAttachController {
         try attach(request: initialRequest, allowStart: allowStart)
     }
 
-    func stopAndExit() -> Never {
+    func detachAndExit() -> Never {
         cleanup()
+        print("[pane session detached]")
+        exit(0)
+    }
+
+    func terminatedAndExit() -> Never {
+        cleanup()
+        print("[pane session terminated]")
         exit(0)
     }
 
@@ -67,7 +74,7 @@ final class PaneAttachController {
         }
         switch command {
         case "d":
-            stopAndExit()
+            detachAndExit()
         case "c":
             createAndSwitch()
         case "n":
@@ -181,7 +188,7 @@ final class PaneAttachController {
                 }
             }
             if self.isCurrentConnection(connection) {
-                self.stopAndExit()
+                self.terminatedAndExit()
             }
         }
     }
@@ -197,7 +204,7 @@ final class PaneAttachController {
             return
         }
         do {
-            try connection.send(.input(PaneInputMessage(data: data)))
+            try connection.sendBinary(.input(PaneInputMessage(data: data)))
         } catch {
             logger.error("send input failed", metadata: ["error": "\(error)"])
         }
@@ -213,7 +220,7 @@ final class PaneAttachController {
         }
         let size = normalizedSize()
         do {
-            try connection.send(.resize(PaneResizeMessage(cols: size.cols, rows: size.rows)))
+            try connection.sendBinary(.resize(PaneResizeMessage(cols: size.cols, rows: size.rows)))
         } catch {
             logger.error("send resize failed", metadata: ["error": "\(error)"])
         }

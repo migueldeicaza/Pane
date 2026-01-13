@@ -208,7 +208,16 @@ struct List: ParsableCommand {
     mutating func run() throws {
         let context = try PaneContext(options: global)
         let client = context.makeClient()
-        let response = try client.send(PaneRequest(command: .listSessions), allowStart: !global.noAutoStart)
+        let response: PaneResponse
+        do {
+            response = try client.send(PaneRequest(command: .listSessions), allowStart: false)
+        } catch let error as PaneSocketError {
+            if case .connectFailed(let code) = error, code == ECONNREFUSED || code == ENOENT {
+                print("No server running")
+                return
+            }
+            throw error
+        }
         guard response.ok else {
             context.logger.error("list sessions failed", metadata: ["message": "\(response.message ?? "unknown error")"])
             throw ValidationError(response.message ?? "list sessions failed")
@@ -278,7 +287,15 @@ struct Destroy: ParsableCommand {
     mutating func run() throws {
         let context = try PaneContext(options: global)
         let client = context.makeClient()
-        let response = try client.send(PaneRequest(command: .destroySession, sessionID: sessionID), allowStart: !global.noAutoStart)
+        let response: PaneResponse
+        do {
+            response = try client.send(PaneRequest(command: .destroySession, sessionID: sessionID), allowStart: false)
+        } catch let error as PaneSocketError {
+            if case .connectFailed(let code) = error, code == ECONNREFUSED || code == ENOENT {
+                throw ValidationError("No server running")
+            }
+            throw error
+        }
         guard response.ok else {
             context.logger.error("destroy failed", metadata: ["message": "\(response.message ?? "unknown error")"])
             throw ValidationError(response.message ?? "destroy failed")

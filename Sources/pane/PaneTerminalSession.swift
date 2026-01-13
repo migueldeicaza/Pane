@@ -90,6 +90,16 @@ final class PaneTerminalSession: Terminal, LocalProcessDelegate {
         lastExitCode = exitCode
         let exitString = exitCode.map(String.init) ?? "nil"
         logger.info("process terminated", metadata: ["exitCode": "\(exitString)"])
+        closeAllSubscribers()
+    }
+
+    private func closeAllSubscribers() {
+        sessionQueue.async {
+            for client in self.subscribers.values {
+                client.close()
+            }
+            self.subscribers.removeAll()
+        }
     }
 
     func dataReceived(slice: ArraySlice<UInt8>) {
